@@ -93,8 +93,8 @@ python src/preprocessing/preprocess.py
 data/processed/usd_preprocessed.csv
 
 ### 📊 Пример визуализации
-![alt text](img/image-1.png)
-![alt text](img/image.png)
+![alt text](img/rate_data.png)
+![alt text](img/preprocessing.png)
 
 ## 🤖 2. Обучение LSTM модели
 Запустите тренировку:
@@ -102,36 +102,19 @@ data/processed/usd_preprocessed.csv
 ```bash
 python src/model/train.py
 ```
-Будут созданы:
-
-models/lstm_usd_model.pth
-
-models/scaler.pkl
-
-models/model_config.json
-
-models/metrics.json
-
-models/loss_curve.png
-
-data/processed/lstm_test_predictions.csv
-
-#### 📉 Loss Curve (пример)
-https://example.com/loss_curve.png
+### 📉 Loss Curve (пример)
+![alt text](img/learning_curve.png)
 
 ## 🔮 3. Генерация прогноза
-Прогноз LSTM:
-
+### Прогноз LSTM:
 ```bash
 python src/model/predict.py
 ```
-Результат:
-data/processed/usd_forecast.csv
-
 ### Прогноз Prophet:
 ```bash
 python -c "from src.model.prophet_model import train_prophet; train_prophet(days=30)"
 ```
+
 ## 🖥 4. Запуск Streamlit UI
 ```bash
 streamlit run src/web/app.py
@@ -147,24 +130,17 @@ streamlit run src/web/app.py
 
 * 📊 Пример визуализаций
 
-История + прогноз LSTM
-https://example.com/lstm_forecast.png
+### История + прогноз LSTM
+![alt text](img/pred_lstm.png)
 
-Прогноз Prophet
-https://example.com/prophet_forecast.png
+### Прогноз Prophet
+![alt text](img/pred_prophet.png)
+![alt text](img/pred_prophet2.png)
 
-Сравнение моделей
-https://example.com/comparison.png
+### Сравнение моделей
+![alt text](img/compare_models.png)
 
-### 🧪 Тестовые предсказания
-После тренировки система автоматически сохраняет:
-
-Формат:
-
-date	real	lstm_pred
-2024-05-01	12700	12695
-2024-05-02	12705	12710
-🧠 Архитектура LSTM
+## 🧠 Архитектура LSTM
 text
 Input (window_size)
         ↓
@@ -176,7 +152,7 @@ Input (window_size)
         ↓
      Output (forecast)
 
-🤝 Автор
+## 🤝 Автор
 Dadakhon Turgunboev
 Machine Learning Engineer
 GitHub: [https://github.com/yourprofile](https://github.com/dadaxonEnigma)
