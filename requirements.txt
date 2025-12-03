@@ -1,6 +1,1 @@
-pandas
-requests
-tqdm
-streamlit
-plotly
-python-dateutil
+--index-url https://download.pytorch.org/whl/cpu
