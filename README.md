@@ -93,7 +93,8 @@ python src/preprocessing/preprocess.py
 data/processed/usd_preprocessed.csv
 
 ### 📊 Пример визуализации
-https://example.com/visualization.png
+![alt text](../itm/img/image-1.png)
+![alt text](../itm/img/image.png)
 
 ## 🤖 2. Обучение LSTM модели
 Запустите тренировку:
