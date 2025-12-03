@@ -1,0 +1,24 @@
+[project]
+name = "itm"
+version = "1.0.0"
+description = "USD-UZS forecasting system (LSTM + Prophet + Streamlit)"
+requires-python = ">=3.10"
+authors = [{name = "Turgunboev Dadakhon"}]
+
+dependencies = [
+    "numpy>=1.23,<2.0",
+    "pandas>=1.5",
+    "torch==2.1.0",
+    "scikit-learn>=1.2",
+    "matplotlib>=3.7",
+    "streamlit>=1.30",
+    "prophet>=1.2",
+    "plotly>=5.0",
+    "joblib>=1.3"
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

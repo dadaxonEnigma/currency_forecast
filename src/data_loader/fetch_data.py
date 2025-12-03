@@ -1,27 +1,26 @@
 # src/data_loader/fetch_data.py
+
 """
-Загрузка исторических курсов USD → UZS из API Центрального Банка Узбекистана.
+Загрузка исторических курсов USD → UZS из API ЦБ Узбекистана.
+Полностью совместимо с проектной структурой.
 
-API (по одному дню):
-    https://cbu.uz/uz/arkhiv-kursov-valyut/json/all/YYYY-MM-DD/
-
-Функционал:
-    ✓ Загрузка полного датасета (2018-12-01 → сегодня)
-    ✓ Загрузка за произвольный диапазон дат
-    ✓ Загрузка последних N дней (--last 30 / 90 / 7)
-    ✓ Автосоздание директорий
-    ✓ Логирование
-    ✓ Повторные попытки при сетевых ошибках
-
-Выход:
-    data/raw/usd_rates.csv
+Исправления:
+- абсолютные пути
+- интеграция с main.py
+- безопасная CLI логика
 """
 
 import os
-import time
+import sys
+
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+
+import os
 import logging
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, Generator
 
 import pandas as pd
 import requests
@@ -29,10 +28,15 @@ from tqdm import tqdm
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
+# ==============================================
+# Абсолютный путь к проекту
+# ==============================================
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+RAW_OUT = os.path.join(ROOT, "data/raw/usd_rates.csv")
 
-# ─────────────────────────────────────────────────────────────
-# ЛОГИРОВАНИЕ
-# ─────────────────────────────────────────────────────────────
+# ==============================================
+# Логирование
+# ==============================================
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
@@ -41,15 +45,18 @@ if not logger.handlers:
     handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s: %(message)s"))
     logger.addHandler(handler)
 
-
-# ─────────────────────────────────────────────────────────────
-# НАСТРОЙКИ
-# ─────────────────────────────────────────────────────────────
+# ==============================================
+# API CONST
+# ==============================================
 BASE_URL = "https://cbu.uz/uz/arkhiv-kursov-valyut/json/all"
+USD_CODE = "USD"
+FIELD_RATE = "Rate"
+FIELD_CCY = "Ccy"
 
-
+# ==============================================
+# Создание HTTP session
+# ==============================================
 def create_session() -> requests.Session:
-    """Создаёт requests.Session с retry-политикой."""
     retry = Retry(
         total=5,
         backoff_factor=0.3,
@@ -59,124 +66,92 @@ def create_session() -> requests.Session:
 
     adapter = HTTPAdapter(max_retries=retry)
     session = requests.Session()
-
     session.mount("https://", adapter)
     session.mount("http://", adapter)
-
     return session
 
-
+# ==============================================
+# Генератор дат
+# ==============================================
 def date_range(start: datetime, end: datetime):
-    """Генератор дат включительно."""
-    current = start
-    while current <= end:
-        yield current
-        current += timedelta(days=1)
+    while start <= end:
+        yield start
+        start += timedelta(days=1)
 
-
-def fetch_usd_for_date(session: requests.Session, date: datetime) -> Optional[float]:
-    """
-    Получает курс USD → UZS за конкретный день.
-    Возвращает float или None.
-    """
+# ==============================================
+# Загрузка курса за одну дату
+# ==============================================
+def fetch_usd_rate_for_date(session: requests.Session, date: datetime) -> Optional[float]:
     formatted = date.strftime("%Y-%m-%d")
     url = f"{BASE_URL}/{formatted}/"
 
     try:
-        resp = session.get(url, timeout=10)
-        if resp.status_code != 200:
-            logger.warning(f"[{formatted}] Ответ API: {resp.status_code}")
+        response = session.get(url, timeout=10)
+        if response.status_code != 200:
+            logger.warning(f"[{formatted}] API status: {response.status_code}")
             return None
 
-        data = resp.json()  # это список всех валют за день
-
+        data = response.json()
         for item in data:
-            if item.get("Ccy") == "USD":
-                rate_str = item.get("Rate")
-                return float(rate_str.replace(",", ""))
+            if item.get(FIELD_CCY) == USD_CODE:
+                return float(item.get(FIELD_RATE).replace(",", ""))
 
-        logger.warning(f"[{formatted}] USD не найден в данных")
+        logger.warning(f"[{formatted}] USD not found in API response.")
         return None
 
     except Exception as e:
-        logger.error(f"Ошибка запроса за {formatted}: {e}")
+        logger.error(f"[{formatted}] Error: {e}")
         return None
 
-
-def fetch_usd_history(
-    start_date: str = "2018-12-01",
-    end_date: Optional[str] = None,
-    out_csv: str = "data/raw/usd_rates.csv",
-    sleep_time: float = 0.05,
-) -> pd.DataFrame:
-    """
-    Главная функция загрузки.
-
-    Args:
-        start_date: str, формат YYYY-MM-DD
-        end_date: str или None
-        out_csv: путь для сохранения итогового CSV
-        sleep_time: задержка между запросами, чтобы не спамить API
-
-    Returns:
-        pandas.DataFrame с колонками ['date', 'rate']
-    """
-
-    start = datetime.strptime(start_date, "%Y-%m-%d")
-    end = datetime.strptime(end_date, "%Y-%m-%d") if end_date else datetime.now()
-
+# ==============================================
+# Основная функция загрузки
+# ==============================================
+def download_usd_rates(start: datetime, end: datetime, sleep: float = 0.05) -> pd.DataFrame:
     session = create_session()
     records = []
 
-    logger.info(f"Загрузка USD курсов: {start.date()} → {end.date()}")
+    logger.info(f"Downloading USD rates: {start.date()} → {end.date()}")
 
-    for d in tqdm(list(date_range(start, end)), desc="Downloading USD history"):
-        rate = fetch_usd_for_date(session, d)
-
+    for d in tqdm(date_range(start, end), desc="Downloading USD"):
+        rate = fetch_usd_rate_for_date(session, d)
         if rate is not None:
             records.append({"date": d.date(), "rate": rate})
-        else:
-            logger.warning(f"Пропуск даты: {d.date()}")
-
-        time.sleep(sleep_time)
+        if sleep:
+            import time
+            time.sleep(sleep)
 
     df = pd.DataFrame(records).sort_values("date").reset_index(drop=True)
-
-    os.makedirs(os.path.dirname(out_csv), exist_ok=True)
-    df.to_csv(out_csv, index=False)
-
-    logger.info(f"Сохранено {len(df)} строк в {out_csv}")
-
     return df
 
+# ==============================================
+# Сохранение файла
+# ==============================================
+def save_dataframe(df: pd.DataFrame, path: str = RAW_OUT):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    df.to_csv(path, index=False)
+    logger.info(f"Saved {len(df)} rows → {path}")
 
-# ─────────────────────────────────────────────────────────────
-# CLI интерфейс
-# ─────────────────────────────────────────────────────────────
+# ==============================================
+# CLI
+# ==============================================
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description="Download USD historical exchange rates")
-
+    parser = argparse.ArgumentParser(description="Fetch USD→UZS history")
     parser.add_argument("--start", type=str, help="Start date YYYY-MM-DD")
     parser.add_argument("--end", type=str, help="End date YYYY-MM-DD")
-    parser.add_argument("--last", type=int, help="Download only last N days")
+    parser.add_argument("--last", type=int, help="Download last N days")
+    parser.add_argument("--out", type=str, default=RAW_OUT)
 
     args = parser.parse_args()
 
-    # РЕЖИМ: только последние N дней
+    # Последние N дней
     if args.last:
         end = datetime.now()
         start = end - timedelta(days=args.last)
-
-        fetch_usd_history(
-            start_date=start.strftime("%Y-%m-%d"),
-            end_date=end.strftime("%Y-%m-%d"),
-        )
-
     else:
-        # РЕЖИМ: диапазон дат или полный период
-        fetch_usd_history(
-            start_date=args.start or "2018-12-01",
-            end_date=args.end,
-        )
+        start = datetime.strptime(args.start or "2018-12-01", "%Y-%m-%d")
+        end = datetime.strptime(args.end, "%Y-%m-%d") if args.end else datetime.now()
+
+    df = download_usd_rates(start, end)
+    save_dataframe(df, args.out)
