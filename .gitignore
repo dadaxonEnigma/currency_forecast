@@ -1,0 +1,84 @@
+# =============================
+# Python general
+# =============================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pdb
+*.so
+*.dll
+
+# =============================
+# Virtual environments
+# =============================
+venv/
+.env/
+.venv/
+ENV/
+env/
+
+# =============================
+# IDE / Editors
+# =============================
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# =============================
+# OS files
+# =============================
+.DS_Store
+Thumbs.db
+
+# =============================
+# Logs
+# =============================
+*.log
+logs/
+
+# =============================
+# Data files
+# =============================
+# raw data downloaded from API
+data/raw/*
+# processed data
+data/processed/*
+# but keep structure (empty dirs)
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+
+# =============================
+# Notebooks checkpoints
+# =============================
+.ipynb_checkpoints/
+
+# =============================
+# Streamlit cache
+# =============================
+.streamlit/
+**/.streamlit/
+
+# =============================
+# Model artifacts
+# =============================
+models/
+*.h5
+*.pth
+*.pkl
+*.joblib
+
+# =============================
+# Temporary files
+# =============================
+tmp/
+temp/
+*.tmp
+
+# =============================
+# Environment configs
+# =============================
+*.env
+.env.*
+.envrc
