@@ -402,6 +402,89 @@ def render_model_compare():
     combo = df_lstm.merge(df_prophet, on="date", how="inner", suffixes=("_LSTM", "_Prophet"))
     st.dataframe(combo.tail(20))
 
+# ============================================================
+#  TAB 5 — Backtesting (оценка качества моделей на истории)
+# ============================================================
+
+def render_backtest_tab():
+    """
+    Минималистичный backtesting:
+    - реальная история vs LSTM test prediction
+    - реальная история vs Prophet test prediction
+    - только графики
+    """
+
+    st.subheader("🎯 Backtesting — Сравнение прогноза с реальностью")
+
+    df_raw = load_raw()
+
+    # Проверяем файлы
+    lstm_path = os.path.join(ROOT, "data/processed/lstm_test_predictions.csv")
+    prophet_path = PROPHET_FC_PATH  # он содержит future, но мы добудем last 30 дней позже
+
+    if not os.path.exists(lstm_path):
+        st.warning("Нет LSTM тестовых предсказаний. Сначала обучите LSTM модель.")
+        return
+
+    # ---- LSTM BACKTEST ----
+    df_lstm = pd.read_csv(lstm_path, parse_dates=["date"])
+
+    st.markdown("### 📈 LSTM Backtest (последний тестовый период)")
+    fig_lstm = go.Figure()
+
+    fig_lstm.add_trace(go.Scatter(
+        x=df_lstm["date"],
+        y=df_lstm["real"],
+        mode="lines",
+        name="Реальное значение",
+        line=dict(color="#2c3e50", width=2)
+    ))
+
+    fig_lstm.add_trace(go.Scatter(
+        x=df_lstm["date"],
+        y=df_lstm["lstm_pred"],
+        mode="lines",
+        name="Прогноз LSTM",
+        line=dict(color="#00a86b", width=2)
+    ))
+
+    fig_lstm.update_layout(
+        template="plotly_white",
+        hovermode="x unified"
+    )
+
+    st.plotly_chart(fig_lstm, use_container_width=True)
+
+    # ---- PROPHET BACKTEST ----
+    prophet_test_path = os.path.join(ROOT, "data/processed/prophet_test_predictions.csv")
+
+    if os.path.exists(prophet_test_path):
+        df_prophet = pd.read_csv(prophet_test_path, parse_dates=["date"])
+
+        st.markdown("### 🔮 Prophet Backtest (последние 30 дней)")
+        fig_prophet = go.Figure()
+
+        fig_prophet.add_trace(go.Scatter(
+            x=df_prophet["date"], y=df_prophet["real"],
+            mode="lines", name="Реальное значение",
+            line=dict(color="#2c3e50", width=2)
+        ))
+
+        fig_prophet.add_trace(go.Scatter(
+            x=df_prophet["date"], y=df_prophet["forecast"],
+            mode="lines", name="Прогноз Prophet",
+            line=dict(color="#0057b7", width=2)
+        ))
+
+        fig_prophet.update_layout(
+            template="plotly_white",
+            hovermode="x unified"
+        )
+
+        st.plotly_chart(fig_prophet, use_container_width=True)
+    else:
+        st.info("Сначала запустите Prophet прогноз, чтобы появились backtest данные.")
+
 
 # ============================================================
 # MAIN — точка входа в приложение
@@ -424,11 +507,12 @@ def main():
         render_kpi(df_proc)
 
     # Tabs
-    tab1, tab2, tab3, tab4 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "📘 История",
         "📈 LSTM прогноз",
         "🔮 Prophet прогноз",
-        "⚔️ Сравнение моделей"
+        "⚔️ Сравнение моделей",
+        "🎯 Backtesting"
     ])
 
     with tab1:
@@ -442,6 +526,9 @@ def main():
 
     with tab4:
         render_model_compare()
+    
+    with tab5:
+        render_backtest_tab()
 
 
 if __name__ == "__main__":
