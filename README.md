@@ -61,37 +61,37 @@
 .
 ├── src/
 │   ├── preprocessing/
-│   │   └── preprocess.py                # 🧹 Очистка данных, заполнение пропусков, feature engineering.
+│   │   └── preprocess.py # 🧹 Очистка данных, заполнение пропусков, feature engineering.
 │   │
 │   ├── model/
-│   │   ├── dataset.py                   # 🧩 Подготовка: масштабирование (Scaler), создание временных окон (Sequences).
-│   │   ├── model_lstm.py                # 🧠 Архитектура: класс многослойной LSTM модели.
-│   │   ├── predict.py                   # 🔮 Прогноз: загрузка модели и выполнение итеративного (рекурсивного) прогноза.
-│   │   └── train.py                     # 🎯 Обучение: цикл тренировки, сохранение лучшей модели и метрик.
+│   │   ├── dataset.py # 🧩 Подготовка: масштабирование (Scaler), создание временных окон (Sequences).
+│   │   ├── model_lstm.py # 🧠 Архитектура: класс многослойной LSTM модели.
+│   │   ├── predict.py # 🔮 Прогноз: загрузка модели и выполнение итеративного (рекурсивного) прогноза.
+│   │   └── train.py # 🎯 Обучение: цикл тренировки, сохранение лучшей модели и метрик.
 │   │
 │   └── web/
-│       └── app.py                       # 🖥️ Streamlit: интерактивный дашборд для визуализации прогнозов.
+│       └── app.py # 🖥️ Streamlit: интерактивный дашборд для визуализации прогнозов.
 │
 ├── data/
 │   ├── raw/
-│   │   └── usd_rates.csv                # 📄 Сырые данные, загруженные из API ЦБ (с пропусками).
+│   │   └── usd_rates.csv # 📄 Сырые данные, загруженные из API ЦБ (с пропусками).
 │   │
 │   └── processed/
-│       ├── usd_preprocessed.csv         # ✅ Готовые данные: очищенные и обогащенные признаками.
-│       ├── usd_forecast.csv             # 📈 Результат прогноза LSTM.
-│       ├── usd_prophet_forecast.csv     # 📊 Результат прогноза Prophet.
-│       └── lstm_test_predictions.csv    # 📉 Сравнение Real vs Pred на тестовом наборе.
+│       ├── usd_preprocessed.csv # ✅ Готовые данные: очищенные и обогащенные признаками.
+│       ├── usd_forecast.csv # 📈 Результат прогноза LSTM.
+│       ├── usd_prophet_forecast.csv # 📊 Результат прогноза Prophet.
+│       └── lstm_test_predictions.csv # 📉 Сравнение Real vs Pred на тестовом наборе.
 │
 ├── models/
-│   ├── lstm_usd_model.pth               # 💾 Веса обученной LSTM модели.
-│   ├── scaler.pkl                       # 📐 Сохраненный MinMaxScaler.
-│   ├── model_config.json                # ⚙️ Параметры модели (window_size, hidden_size и т.д.).
-│   ├── loss_curve.png                   # 🖼️ График истории обучения (Loss Curve).
+│   ├── lstm_usd_model.pth # 💾 Веса обученной LSTM модели.
+│   ├── scaler.pkl # 📐 Сохраненный MinMaxScaler.
+│   ├── model_config.json # ⚙️ Параметры модели (window_size, hidden_size и т.д.).
+│   ├── loss_curve.png # 🖼️ График истории обучения (Loss Curve).
 │   ├── loss_curve.csv
-│   └── metrics.json                     # ⭐ Финальные метрики (MAE, RMSE) на тесте.
+│   └── metrics.json # ⭐ Финальные метрики (MAE, RMSE) на тесте.
 │
-├── pyproject.toml                       # 📦 Конфигурация проекта и зависимости.
-└── README.md                            # 📖 Главный файл проекта.
+├── pyproject.toml # 📦 Конфигурация проекта и зависимости.
+└── README.md # 📖 Главный файл проекта.
 ---
 
 ## 🔧 Установка
