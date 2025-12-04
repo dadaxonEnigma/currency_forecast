@@ -101,14 +101,44 @@
 git clone git@github.com:dadaxonEnigma/currency_forecast.git
 cd currency_forecast
 ```
-### 2. Установите зависимости
+
+### 2. Создание виртуального окружения
+Windows:
+```bash
+python -m venv venv
+venv\Scripts\activate
+```
+Linux/macOS:
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
+
+### 3. Установите зависимости
+Проект использует pyproject.toml, поэтому достаточно:
 ```bash
 pip install .
 ```
+Если Prophet не устанавливается (частая проблема), можно вручную:
+```bash
+pip install prophet
+```
+### 4. Загрузка данных
+Вариант A - последние N дней:
+```bash
+python src/data_loader/fetch_data.py --last 2000
+```
+Вариант B - за период:
+```bash
+python src/data_loader/fetch_data.py --start 2018-12-01 --end 2025-12-03
+```
+После скачивания появится файл:
+```bash
+data/raw/usd_rates.csv
+```
 
-#### 📥 1. Предобработка данных
-Для начала нужно создать обработанный датасет:
-
+### 📥 5. Предобработка данных
+Создаёт файл usd_preprocessed.csv и фичи.
 ```bash
 python src/preprocessing/preprocess.py
 ```
@@ -119,26 +149,15 @@ data/processed/usd_preprocessed.csv
 ![alt text](img/rate_data.png)
 ![alt text](img/preprocessing.png)
 
-#### 🤖 2. Обучение LSTM модели
+### 🤖 6. Обучение LSTM модели
 Запустите тренировку:
-
 ```bash
 python src/model/train.py
 ```
 #### 📉 Loss Curve (пример)
 ![alt text](img/learning_curve.png)
 
-#### 🔮 3. Генерация прогноза
-### Прогноз LSTM:
-```bash
-python src/model/predict.py
-```
-### Прогноз Prophet:
-```bash
-python -c "from src.model.prophet_model import train_prophet; train_prophet(days=30)"
-```
-
-## 🖥 4. Запуск Streamlit UI
+## 🖥 7. Запуск Streamlit UI
 ```bash
 streamlit run src/web/app.py
 ```
