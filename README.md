@@ -34,7 +34,8 @@
 - Проверка качества и графики
 
 ---
-
+## System Architecture
+![ML System Architecture](img/full_pipeline(vert).svg)
 ## 🧱 Структура проекта
 📦 project
 │
