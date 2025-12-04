@@ -1,26 +1,17 @@
+# src/model/train.py
 """
-Обучение LSTM модели для прогноза USD→UZS.
+Тренировка LSTM модели для прогноза USD → UZS.
 
-Функция train_model выполняет полный ML pipeline:
--------------------------------------------------
-1) Загружает данные и нормализует их
-2) Создаёт train/test LSTM датасеты
-3) Обучает модель и сохраняет лучшую модель
-4) Записывает метрики (MAE / RMSE)
-5) Сохраняет историю обучения (loss-curve)
-6) ДОПОЛНИТЕЛЬНО сохраняет реальные и предсказанные тестовые данные:
-       data/processed/lstm_test_predictions.csv
+Полный ML pipeline включает:
+    1) загрузку и нормализацию данных
+    2) подготовку обучающего и тестового датасета
+    3) обучение LSTM модели и выбор наилучшей версии
+    4) сохранение итоговых метрик MAE/RMSE
+    5) построение loss-кривой
+    6) сохранение реальных и предсказанных значений тестовой выборки
 
 Этот файл отвечает ИСКЛЮЧИТЕЛЬНО за тренировку модели.
 """
-
-import os
-import sys
-
-# Добавление ROOT в sys.path, если модуль запускается напрямую
-ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-if ROOT not in sys.path:
-    sys.path.insert(0, ROOT)
 
 import os
 import json
@@ -40,13 +31,12 @@ from src.model.dataset import prepare_dataset
 
 
 # ============================================================
-# ЛОГИРОВАНИЕ
+# Логирование
 # ============================================================
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-# Добавляем handler один раз
 if not logger.handlers:
     handler = logging.StreamHandler()
     handler.setFormatter(logging.Formatter("%(asctime)s [TRAIN] %(levelname)s: %(message)s"))
@@ -54,12 +44,13 @@ if not logger.handlers:
 
 
 # ============================================================
-# ФИКСАЦИЯ SEED
+# Фиксация SEED — важнейшая часть reproducibility
 # ============================================================
 
 def set_seed(seed: int = 42):
     """
-    Фиксирует генераторы случайных чисел для воспроизводимости.
+    Устанавливает фиксированный seed для всех источников случайности.
+    Это делает обучение воспроизводимым.
     """
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -67,15 +58,18 @@ def set_seed(seed: int = 42):
 
 
 # ============================================================
-# ОБУЧЕНИЕ ОДНОГО ШАГА
+# Один шаг обучения
 # ============================================================
 
 def train_step(model, loader, criterion, optimizer, device):
     """
-    Один шаг обучения:
-        - вычисляет loss
-        - делает backward()
-        - обновляет веса
+    Выполняет один полный проход по обучающему датасету.
+
+    Этапы:
+        - прямой проход модели
+        - вычисление функции потерь
+        - обратное распространение ошибки
+        - обновление весов оптимизатором
     """
     model.train()
     running_loss = 0.0
@@ -95,14 +89,19 @@ def train_step(model, loader, criterion, optimizer, device):
 
 
 # ============================================================
-# ВАЛИДАЦИЯ (EVAL) + СОХРАНЕНИЕ ПРЕДСКАЗАНИЙ
+# Валидация (без обновления весов)
 # ============================================================
 
 def eval_step(model, loader, criterion, device):
     """
-    Выполняет проход на валидации:
-        - считает loss
-        - собирает реальные значения и предсказания (в scaled виде)
+    Выполняет проход по тестовой выборке:
+        - вычисляет среднюю функцию потерь
+        - сохраняет реальные и предсказанные значения (масштабированные)
+
+    Возвращает:
+        avg_loss — средняя ошибка
+        y_true   — реальные значения
+        y_pred   — предсказания модели
     """
     model.eval()
 
@@ -110,14 +109,13 @@ def eval_step(model, loader, criterion, device):
     y_true = []
     y_pred = []
 
-    with torch.no_grad():
+    with torch.no_grad():  # отключаем вычисление градиентов
         for X, y in loader:
             X, y = X.to(device), y.to(device)
             preds = model(X)
 
             running_loss += criterion(preds, y).item()
 
-            # сохраняем в numpy
             y_true.extend(y.cpu().numpy().flatten())
             y_pred.extend(preds.cpu().numpy().flatten())
 
@@ -125,7 +123,7 @@ def eval_step(model, loader, criterion, device):
 
 
 # ============================================================
-# ОСНОВНАЯ ФУНКЦИЯ ТРЕНИРОВКИ
+# Основная функция обучения
 # ============================================================
 
 def train_model(
@@ -137,22 +135,22 @@ def train_model(
     model_path: str = "models/lstm_usd_model.pth"
 ):
     """
-    Обучает LSTM модель на временном ряду USD→UZS.
+    Запускает полный цикл обучения модели LSTM.
 
     Сохраняет:
-        - модель (.pth)
-        - scaler.pkl (prepare_dataset делает)
-        - models/metrics.json
-        - models/loss_curve.csv
-        - models/loss_curve.png
-        - data/processed/lstm_test_predictions.csv ← важный файл
+        • веса модели (.pth)
+        • scaler.pkl (создаётся prepare_dataset)
+        • метрики обучения (models/metrics.json)
+        • график и CSV кривой обучения
+        • предсказания тестовой выборки
     """
 
+    # 1. Фиксируем seed
     set_seed()
 
-    # ------------------------------ #
-    # 1) Загружаем DATASET
-    # ------------------------------ #
+    # -------------------------------------------------------------
+    # 1) Готовим датасет (загрузка CSV → масштабирование → окна)
+    # -------------------------------------------------------------
     train_ds, test_ds, scaler = prepare_dataset(window_size, test_ratio)
 
     train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
@@ -161,21 +159,20 @@ def train_model(
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logger.info(f"Используется устройство: {device}")
 
-    # ------------------------------ #
-    # 2) Создаём модель
-    # ------------------------------ #
+    # -------------------------------------------------------------
+    # 2) Создаём модель и инструменты обучения
+    # -------------------------------------------------------------
     model = LSTMModel().to(device)
     criterion = torch.nn.MSELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
     best_loss = float("inf")
-
     train_losses = []
     test_losses = []
 
-    # ------------------------------ #
-    # 3) TRAIN LOOP
-    # ------------------------------ #
+    # -------------------------------------------------------------
+    # 3) Основной цикл тренировки
+    # -------------------------------------------------------------
     for epoch in range(1, epochs + 1):
 
         train_loss = train_step(model, train_loader, criterion, optimizer, device)
@@ -184,19 +181,17 @@ def train_model(
         train_losses.append(train_loss)
         test_losses.append(test_loss)
 
-        logger.info(
-            f"Epoch {epoch}/{epochs} | Train={train_loss:.6f} | Test={test_loss:.6f}"
-        )
+        logger.info(f"Epoch {epoch}/{epochs} | Train={train_loss:.6f} | Test={test_loss:.6f}")
 
-        # сохраняем лучшую модель
+        # Сохраняем лучшую модель по качеству на тесте
         if test_loss < best_loss:
             best_loss = test_loss
             torch.save(model.state_dict(), model_path)
             logger.info(f"✔ Лучшая модель сохранена (test_loss={best_loss:.6f})")
 
-    # ------------------------------ #
-    # 4) ФИНАЛЬНЫЕ МЕТРИКИ
-    # ------------------------------ #
+    # -------------------------------------------------------------
+    # 4) Финальные метрики
+    # -------------------------------------------------------------
     mae = float(mean_absolute_error(y_true, y_pred))
     rmse = float(math.sqrt(mean_squared_error(y_true, y_pred)))
 
@@ -206,17 +201,14 @@ def train_model(
 
     logger.info(f"Итоговые метрики: MAE={mae:.6f}, RMSE={rmse:.6f}")
 
-    # ------------------------------ #
-    # 5) СОХРАНЯЕМ ПРЕДСКАЗАНИЯ TEST-SET
-    # ------------------------------ #
-
+    # -------------------------------------------------------------
+    # 5) Сохранение тестовых предсказаний (real vs predicted)
+    # -------------------------------------------------------------
     df_raw = pd.read_csv("data/processed/usd_preprocessed.csv", parse_dates=["date"])
     test_len = len(test_ds)
 
-    # реальные даты тестовой выборки
     dates_test = df_raw["date"].iloc[-test_len:].reset_index(drop=True)
 
-    # инверсируем масштаб
     preds_inversed = scaler.inverse_transform(y_pred.reshape(-1, 1)).flatten()
     reals_inversed = scaler.inverse_transform(y_true.reshape(-1, 1)).flatten()
 
@@ -231,16 +223,14 @@ def train_model(
 
     logger.info("✔ Test predictions сохранены → data/processed/lstm_test_predictions.csv")
 
-    # ------------------------------ #
-    # 6) СОХРАНЯЕМ КРИВУЮ УБЫТИЙ
-    # ------------------------------ #
-
+    # -------------------------------------------------------------
+    # 6) Построение и сохранение кривой обучения
+    # -------------------------------------------------------------
     loss_df = pd.DataFrame({
         "epoch": list(range(1, epochs + 1)),
         "train_loss": train_losses,
         "test_loss": test_losses
     })
-
     loss_df.to_csv("models/loss_curve.csv", index=False)
 
     plt.figure(figsize=(8, 4))
@@ -259,7 +249,7 @@ def train_model(
 
 
 # ============================================================
-# CLI
+# CLI запуск
 # ============================================================
 
 if __name__ == "__main__":

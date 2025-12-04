@@ -1,3 +1,18 @@
+# src/web/app.py
+"""
+Streamlit-приложение для анализа валютного ряда USD → UZS.
+
+Содержит:
+    • отображение исторических данных
+    • KPI последнего дня (MA7, MA30, дневная динамика)
+    • прогноз LSTM модели с визуализацией трендов
+    • прогноз Prophet с интервалами неопределённости
+    • сравнение двух моделей на одном графике
+
+Главная цель этого UI — позволить пользователю
+интерактивно исследовать данные и прогнозы.
+"""
+
 import os
 import sys
 import json
@@ -7,8 +22,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 # ============================================================
-#  Абсолютные пути к корню проекта и данным
-#  Позволяет запускать приложение из любой директории
+# Абсолютные пути к проекту (важно для запуска из любой директории)
 # ============================================================
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -27,15 +41,12 @@ PROPHET_FC_PATH = os.path.join(ROOT, "data/processed/usd_prophet_forecast.csv")
 
 
 # ============================================================
-#  КЭШИРОВАНИЕ ДАННЫХ
+# Функции загрузки (с кэшированием)
 # ============================================================
 
 @st.cache_data
 def load_raw():
-    """
-    Загружает сырые данные USD→UZS.
-    Используется кэширование Streamlit для ускорения рендера UI.
-    """
+    """Загружает сырые данные USD→UZS, возвращает DataFrame."""
     if os.path.exists(RAW_PATH):
         return pd.read_csv(RAW_PATH, parse_dates=["date"]).sort_values("date")
     return None
@@ -43,29 +54,27 @@ def load_raw():
 
 @st.cache_data
 def load_processed():
-    """
-    Загружает предобработанные данные.
-    """
+    """Загружает предобработанные данные."""
     if os.path.exists(PROC_PATH):
         return pd.read_csv(PROC_PATH, parse_dates=["date"]).sort_values("date")
     return None
 
 
 def clear_cache():
-    """Полностью очищает кэш приложения Streamlit."""
+    """Очистка кэша Streamlit (нужно после генерации прогнозов)."""
     st.cache_data.clear()
 
 
 # ============================================================
-#  KPI — Показатели текущего состояния валютного рынка
+# KPI — ключевые показатели последнего дня
 # ============================================================
 
 def render_kpi(df_proc: pd.DataFrame):
     """
-    Рендер KPI карточек:
-    - текущий курс
-    - изменение за сутки
-    - MA7 и MA30 (скользящие средние)
+    Выводит:
+        • текущий курс
+        • изменение за сутки
+        • MA7 / MA30
     """
     st.header("📊 KPI валютного курса")
 
@@ -76,14 +85,12 @@ def render_kpi(df_proc: pd.DataFrame):
     last = df_proc.iloc[-1]
     prev = df_proc.iloc[-2]
 
-    # Суточная динамика
+    # Дневная динамика
     change = last["rate"] - prev["rate"]
     change_pct = (change / prev["rate"]) * 100
-
     arrow = "🟢↑" if change > 0 else "🔴↓" if change < 0 else "➡"
 
     col1, col2, col3, col4 = st.columns(4)
-
     col1.metric("Текущий курс", f"{last['rate']:.2f}")
     col2.metric("Суточное изменение", f"{change:+.2f}", f"{arrow} {change_pct:+.2f}%")
     col3.metric("MA7", f"{last['MA7']:.2f}")
@@ -91,13 +98,11 @@ def render_kpi(df_proc: pd.DataFrame):
 
 
 # ============================================================
-#  TAB 1 — Исторические данные
+# TAB 1 — Исторические данные
 # ============================================================
 
 def render_raw_tab(df_raw):
-    """
-    Рисует таблицу последних значений и график истории курсов.
-    """
+    """Отображает таблицу и график исторического курса USD→UZS."""
     st.subheader("📘 Исторические данные USD→UZS")
     st.dataframe(df_raw.tail(20))
 
@@ -107,15 +112,15 @@ def render_raw_tab(df_raw):
 
 
 # ============================================================
-#  TAB 2 — Прогноз LSTM
+# TAB 2 — Прогноз LSTM
 # ============================================================
 
 def render_lstm_tab():
     """
-    Генерирует и отображает прогноз LSTM:
-    - стрелка роста/падения
-    - точки роста/падения на графике
-    - красивая визуализация в стиле Prophet
+    Отображает:
+        • прогноз LSTM
+        • стрелки роста/падения
+        • визуализацию с маркерами тренда
     """
     st.subheader("📈 Улучшенный LSTM прогноз USD→UZS")
 
@@ -125,12 +130,12 @@ def render_lstm_tab():
         st.info("Генерация прогноза...")
 
         df_pred = predict_future(days=days)
-        clear_cache()
+        clear_cache()  # обновляем кэш после генерации
         st.success("Прогноз готов!")
 
         df_raw = load_raw()
 
-        # ------------------------- Изменение курса ------------------------- #
+        # --- Изменение относительно последнего значения ---
         diff = df_pred["forecast"].iloc[-1] - df_raw["rate"].iloc[-1]
         pct = (diff / df_raw["rate"].iloc[-1]) * 100
         arrow = "🟢↑" if diff > 0 else "🔴↓" if diff < 0 else "➡"
@@ -141,47 +146,46 @@ def render_lstm_tab():
             f"{arrow} {pct:+.2f}%"
         )
 
-        # ------------------------- Создание маркеров ------------------------- #
+        # --- Маркеры тренда ---
         df_pred_plot = df_pred.copy()
         df_pred_plot["diff"] = df_pred_plot["forecast"].diff()
 
         df_pred_plot["color"] = df_pred_plot["diff"].apply(
             lambda x: "green" if x > 0 else ("red" if x < 0 else "gray")
         )
-
         df_pred_plot["arrow"] = df_pred_plot["diff"].apply(
             lambda x: "▲" if x > 0 else ("▼" if x < 0 else "•")
         )
 
-        # ------------------------- ГРАФИК ------------------------- #
+        # --- Визуализация ---
         fig = go.Figure()
 
-        # История
+        # История курса
         fig.add_trace(go.Scatter(
-            x=df_raw["date"], y=df_raw["rate"],
-            mode="lines", line=dict(color="#2c3e50", width=2.5), name="История"
+            x=df_raw["date"],
+            y=df_raw["rate"],
+            mode="lines",
+            line=dict(color="#2c3e50", width=2.5),
+            name="История"
         ))
 
-        # Прогноз LSTM
+        # Прогноз
         fig.add_trace(go.Scatter(
-            x=df_pred["date"], y=df_pred["forecast"],
-            mode="lines", line=dict(color="#00a86b", width=3),
+            x=df_pred["date"],
+            y=df_pred["forecast"],
+            mode="lines",
+            line=dict(color="#00a86b", width=3),
             name="Прогноз LSTM"
         ))
 
-        # "Зона прогноза" (условная мягкая область)
-        fig.add_trace(go.Scatter(
-            x=df_pred["date"], y=df_pred["forecast"],
-            mode="lines", line=dict(width=0), showlegend=False
-        ))
-
+        # Зона прогноза
         fig.add_trace(go.Scatter(
             x=df_pred["date"],
             y=[df_pred["forecast"].min()] * len(df_pred),
             fill="tonexty",
             fillcolor="rgba(0,168,107,0.15)",
             line=dict(width=0),
-            name="Зона прогноза",
+            showlegend=False,
             hoverinfo="skip"
         ))
 
@@ -200,8 +204,7 @@ def render_lstm_tab():
             title="📈 История + Прогноз LSTM",
             template="plotly_white",
             hovermode="x unified",
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            margin=dict(l=20, r=20, t=50, b=20)
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
         )
 
         st.plotly_chart(fig, use_container_width=True)
@@ -209,15 +212,16 @@ def render_lstm_tab():
 
 
 # ============================================================
-#  TAB 3 — Прогноз Prophet
+# TAB 3 — Прогноз Prophet
 # ============================================================
 
 def render_prophet_tab():
     """
-    Генерация прогноза Prophet + красивая визуализация:
-    - доверительный интервал
-    - стрелки изменения
-    - маркеры роста/падения
+    Обучает Prophet на истории и отображает:
+        • прогноз
+        • доверительные интервалы
+        • стрелки изменения
+        • маркеры тренда
     """
     st.subheader("🔮 Улучшенный прогноз Prophet")
 
@@ -228,13 +232,12 @@ def render_prophet_tab():
 
         df_fc, metrics = train_prophet(days=days)
         clear_cache()
-
         st.success("Прогноз готов!")
 
         df_raw = load_raw()
         df_proc = load_processed()
 
-        # ------------------------- Изменение курса ------------------------- #
+        # --- Изменение относительно последнего real ---
         last_real = df_proc.iloc[-1]["rate"]
         diff = df_fc["forecast"].iloc[-1] - last_real
         pct = (diff / last_real) * 100
@@ -242,10 +245,9 @@ def render_prophet_tab():
 
         st.metric("Изменение (Prophet)", f"{diff:+.2f}", f"{arrow} {pct:+.2f}%")
 
-        # ------------------------- Маркеры Prophet ------------------------- #
+        # --- Маркеры тренда ---
         df_fc_plot = df_fc.copy()
         df_fc_plot["diff"] = df_fc_plot["forecast"].diff()
-
         df_fc_plot["color"] = df_fc_plot["diff"].apply(
             lambda x: "green" if x > 0 else ("red" if x < 0 else "gray")
         )
@@ -253,7 +255,7 @@ def render_prophet_tab():
             lambda x: "▲" if x > 0 else ("▼" if x < 0 else "•")
         )
 
-        # ------------------------- График Prophet ------------------------- #
+        # --- Визуализация ---
         fig = go.Figure()
 
         # История
@@ -263,29 +265,27 @@ def render_prophet_tab():
             name="История"
         ))
 
-        # Основная линия прогноза
+        # Прогноз Prophet
         fig.add_trace(go.Scatter(
             x=df_fc["date"], y=df_fc["forecast"],
             mode="lines", line=dict(color="#0057b7", width=3),
             name="Прогноз Prophet"
         ))
 
-        # Доверительный интервал
+        # Интервалы неопределённости
         fig.add_trace(go.Scatter(
             x=df_fc["date"], y=df_fc["upper"],
-            mode="lines", line=dict(width=0),
-            showlegend=False
+            mode="lines", line=dict(width=0), showlegend=False
         ))
-
         fig.add_trace(go.Scatter(
             x=df_fc["date"], y=df_fc["lower"],
             fill="tonexty",
-            fillcolor="rgba(0, 113, 227, 0.15)",
+            fillcolor="rgba(0,113,227,0.15)",
             line=dict(width=0),
             name="Доверительный интервал"
         ))
 
-        # Маркеры
+        # Маркеры роста/падения
         fig.add_trace(go.Scatter(
             x=df_fc_plot["date"], y=df_fc_plot["forecast"],
             mode="markers+text",
@@ -299,8 +299,7 @@ def render_prophet_tab():
             title="🔮 История + Прогноз Prophet",
             template="plotly_white",
             hovermode="x unified",
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            margin=dict(l=20, r=20, t=50, b=20)
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
         )
 
         st.plotly_chart(fig, use_container_width=True)
@@ -314,19 +313,19 @@ def render_prophet_tab():
 
 
 # ============================================================
-#  TAB 4 — Сравнение моделей
+# TAB 4 — Сравнение моделей
 # ============================================================
 
 def render_model_compare():
     """
-    Сравнивает прогнозы LSTM и Prophet на одном графике
-    + маркеры роста/падения у обеих моделей.
+    Отображает сравнение LSTM и Prophet на одном графике.
+    Добавляет маркеры роста/падения для обеих моделей.
     """
     st.subheader("⚔️ Сравнение моделей LSTM и Prophet")
 
     df_raw = load_raw()
 
-    # Проверяем наличие данных
+    # Проверяем наличие необходимых прогнозов
     if not os.path.exists(LSTM_FC_PATH):
         st.warning("Сначала выполните LSTM прогноз.")
         return
@@ -338,8 +337,8 @@ def render_model_compare():
     df_lstm = pd.read_csv(LSTM_FC_PATH, parse_dates=["date"])
     df_prophet = pd.read_csv(PROPHET_FC_PATH, parse_dates=["date"])
 
-    # Функция для генерации маркеров
     def make_markers(df, column):
+        """Подготовка цветовых маркеров и стрелок для визуализации."""
         df = df.copy()
         df["diff"] = df[column].diff()
         df["color"] = df["diff"].apply(
@@ -353,21 +352,22 @@ def render_model_compare():
     df_lstm_m = make_markers(df_lstm, "forecast")
     df_prophet_m = make_markers(df_prophet, "forecast")
 
-    # ------------------------- ГРАФИК ------------------------- #
+    # --- Визуализация ---
     fig = go.Figure()
 
+    # История
     fig.add_trace(go.Scatter(
         x=df_raw["date"], y=df_raw["rate"],
         mode="lines", line=dict(color="#2c3e50", width=2),
         name="История"
     ))
 
+    # LSTM
     fig.add_trace(go.Scatter(
         x=df_lstm["date"], y=df_lstm["forecast"],
         mode="lines", line=dict(color="#00a86b", width=3),
         name="LSTM"
     ))
-
     fig.add_trace(go.Scatter(
         x=df_lstm_m["date"], y=df_lstm_m["forecast"],
         mode="markers",
@@ -375,12 +375,12 @@ def render_model_compare():
         name="LSTM точки"
     ))
 
+    # Prophet
     fig.add_trace(go.Scatter(
         x=df_prophet["date"], y=df_prophet["forecast"],
         mode="lines", line=dict(color="#0057b7", width=3),
         name="Prophet"
     ))
-
     fig.add_trace(go.Scatter(
         x=df_prophet_m["date"], y=df_prophet_m["forecast"],
         mode="markers",
@@ -392,8 +392,7 @@ def render_model_compare():
         title="⚔️ Сравнение моделей: LSTM vs Prophet",
         template="plotly_white",
         hovermode="x unified",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        margin=dict(l=20, r=20, t=50, b=20)
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
     )
 
     st.plotly_chart(fig, use_container_width=True)
@@ -405,14 +404,11 @@ def render_model_compare():
 
 
 # ============================================================
-#  MAIN — Точка входа в приложение Streamlit
+# MAIN — точка входа в приложение
 # ============================================================
 
 def main():
-    """
-    Главная функция: создаёт интерфейс Streamlit,
-    загружает данные и отображает вкладки.
-    """
+    """Главная функция Streamlit-приложения."""
     st.set_page_config(page_title="USD→UZS Analytics", layout="wide")
     st.title("💵 USD → UZS Аналитика и прогноз")
 
@@ -423,6 +419,7 @@ def main():
         st.error("Нет данных. Сначала загрузите данные.")
         return
 
+    # KPI-блок
     if df_proc is not None:
         render_kpi(df_proc)
 

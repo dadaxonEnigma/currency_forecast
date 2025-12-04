@@ -1,17 +1,24 @@
 # src/model/dataset.py
 """
-Подготовка данных для обучения LSTM модели.
+Модуль подготовки данных для обучения LSTM модели прогнозирования курса USD→UZS.
 
-Функции модуля обеспечивают:
-    ✔ Загрузку предобработанных данных с абсолютным путём.
-    ✔ Генерацию временных окон для модели.
-    ✔ Масштабирование данных с помощью MinMaxScaler.
-    ✔ Создание PyTorch Dataset объектов для Train / Test.
-    ✔ Гарантированную работу даже с маленькими датасетами.
+Этот файл выполняет несколько ключевых задач:
+    1) Загружает предобработанный датасет с диска.
+    2) Масштабирует данные с помощью MinMaxScaler.
+    3) Разбивает данные на обучающую и тестовую части.
+    4) Генерирует временные окна (sequence → target).
+    5) Возвращает PyTorch Dataset объекты для дальнейшего обучения.
+
+Формат данных:
+    Предобработанный CSV должен содержать столбцы:
+        - date        (datetime)
+        - rate        (основной таргет)
+        - дополнительные признаки (не используются LSTM)
+
+LSTM обучается только на одном признаке — `rate`.
 """
 
 import os
-import sys
 import logging
 from typing import Tuple
 
@@ -21,50 +28,47 @@ from sklearn.preprocessing import MinMaxScaler
 import torch
 from torch.utils.data import Dataset
 
-
 # ============================================================
-# ПУТИ К ПРОЕКТУ
+# Пути
 # ============================================================
 
+# Абсолютный путь к корню проекта
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-if ROOT not in sys.path:
-    sys.path.insert(0, ROOT)
 
-BASE = ROOT
-DEFAULT_PREPROCESSED = os.path.join(BASE, "data/processed/usd_preprocessed.csv")
-
+# Файл с предобработанными данными
+DEFAULT_PREPROCESSED = os.path.join(ROOT, "data/processed/usd_preprocessed.csv")
 
 # ============================================================
-# ЛОГИРОВАНИЕ
+# Логирование
 # ============================================================
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-# Добавляем handler один раз, иначе Streamlit дублирует вывод
+# Добавляем handler только один раз (Streamlit может вызывать модуль повторно)
 if not logger.handlers:
     handler = logging.StreamHandler()
     handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s: %(message)s"))
     logger.addHandler(handler)
 
-
 # ============================================================
-# DATASET CLASS
+# PyTorch Dataset
 # ============================================================
 
 class USDataset(Dataset):
     """
-    Класс PyTorch Dataset для временных рядов.
+    PyTorch Dataset для временных рядов.
 
-    Параметры:
-        sequences — numpy массив формы (samples, window_size, 1)
-        targets   — numpy массив формы (samples, 1)
+    sequences : numpy.ndarray — форма (samples, window, 1)
+    targets   : numpy.ndarray — форма (samples, 1)
     """
 
     def __init__(self, sequences: np.ndarray, targets: np.ndarray):
+        # Проверка согласованности данных
         assert len(sequences) == len(targets), \
             "Количество входов и выходов должно совпадать"
 
+        # Приводим данные к float32 — формат оптимален для PyTorch
         self.sequences = sequences.astype(np.float32)
         self.targets = targets.astype(np.float32)
 
@@ -73,83 +77,88 @@ class USDataset(Dataset):
         return len(self.sequences)
 
     def __getitem__(self, idx: int):
-        """Возвращает одну пару (X, y) в формате PyTorch tensors."""
+        """
+        Возвращает один обучающий пример:
+            X — окно временного ряда (shape: window_size × 1)
+            y — целевое значение (следующий день)
+        """
         return (
             torch.tensor(self.sequences[idx]),
             torch.tensor(self.targets[idx])
         )
 
-
 # ============================================================
-# ЗАГРУЗКА ДАННЫХ
+# Загрузка предобработанных данных
 # ============================================================
 
 def load_preprocessed(path: str = DEFAULT_PREPROCESSED) -> pd.DataFrame:
     """
-    Загружает предобработанный CSV-файл.
-
-    Параметры:
-        path — абсолютный путь к файлу
+    Загружает CSV-файл с предобработанными значениями.
 
     Возвращает:
-        pd.DataFrame с колонками [date, rate, diff, pct_change, ...]
+        DataFrame с колонками:
+            date, rate, diff, pct_change, direction, MA7, MA30, ...
     """
     if not os.path.exists(path):
         raise FileNotFoundError(f"Файл не найден: {path}")
 
-    df = pd.read_csv(path, parse_dates=["date"]).sort_values("date").reset_index(drop=True)
+    df = (
+        pd.read_csv(path, parse_dates=["date"])
+        .sort_values("date")
+        .reset_index(drop=True)
+    )
 
+    # Предупреждение, если после обработки доступны пропуски
     if df["rate"].isna().any():
         logger.warning("⚠ Обнаружены пропуски в rate после предобработки.")
 
-    logger.info(f"Предобработанные данные загружены ({len(df)} строк).")
+    logger.info(f"Предобработанные данные загружены: {len(df)} строк.")
     return df
 
-
 # ============================================================
-# ГЕНЕРАЦИЯ ОКОН ВРЕМЕННОГО РЯДА
+# Генерация временных окон
 # ============================================================
 
 def create_sequences(data: np.ndarray, window_size: int) -> Tuple[np.ndarray, np.ndarray]:
     """
-    Генерирует обучающие примеры для LSTM.
+    Формирует обучающие примеры для LSTM.
 
     Формат:
-        X[i] = data[t : t + window_size]
-        y[i] = data[t + window_size]
+        X[i] = data[t : t + window_size]      — окно значений
+        y[i] = data[t + window_size]          — следующий день
 
     Параметры:
-        data — одномерный нормализованный массив (scaled)
-        window_size — длина окна
+        data — одномерный масштабированный массив вида (N, 1)
+        window_size — длина временного окна
 
     Возвращает:
-        sequences — массив X формы (samples, window_size, 1)
-        targets   — массив y формы (samples, 1)
+        sequences — X, форма (samples, window_size, 1)
+        targets   — y, форма (samples, 1)
     """
 
     if len(data) <= window_size:
         raise ValueError(
-            f"Слишком мало данных ({len(data)}) для окна window_size={window_size}"
+            f"Недостаточно данных ({len(data)}) для окна размером {window_size}"
         )
 
-    sequences, targets = [], []
+    sequences = []
+    targets = []
 
-    # Окно "скользит" по ряду
+    # Скользящее окно
     for i in range(len(data) - window_size):
-        seq = data[i:i + window_size]      # N значений
-        target = data[i + window_size]     # Следующее значение
+        seq = data[i : i + window_size]        # окно
+        target = data[i + window_size]         # следующее значение
         sequences.append(seq)
         targets.append(target)
 
     sequences = np.array(sequences)
     targets = np.array(targets)
 
-    logger.info(f"Создано {len(sequences)} обучающих примеров.")
+    logger.info(f"Создано обучающих примеров: {len(sequences)}")
     return sequences, targets
 
-
 # ============================================================
-# ПОДГОТОВКА ДАННЫХ ДЛЯ TRAIN / TEST
+# Объединённый pipeline подготовки данных
 # ============================================================
 
 def prepare_dataset(
@@ -158,40 +167,54 @@ def prepare_dataset(
     data_path: str = DEFAULT_PREPROCESSED
 ) -> Tuple[Dataset, Dataset, MinMaxScaler]:
     """
-    Полная подготовка данных для обучения модели LSTM.
+    Полный цикл подготовки данных для LSTM.
 
-    Параметры:
-        window_size — длина окна временного ряда
-        test_ratio — доля тестовых данных (0.1 = 10%)
-        data_path — путь к предобработанному CSV
+    Этапы:
+        1. Загрузка предобработанного CSV.
+        2. Масштабирование значений курса (MinMaxScaler).
+        3. Генерация временных окон.
+        4. Разделение данных на train/test по времени.
+        5. Создание PyTorch Dataset объектов.
 
     Возвращает:
-        train_ds  — PyTorch Dataset (train)
-        test_ds   — PyTorch Dataset (test)
-        scaler    — обученный MinMaxScaler
+        train_ds — обучающий набор
+        test_ds  — тестовый набор
+        scaler   — обученный MinMaxScaler (важен для последующих прогнозов)
     """
 
-    # 1. Загружаем данные
+    # -------------------------
+    # 1. Загружаем DataFrame
+    # -------------------------
     df = load_preprocessed(data_path)
+
+    # LSTM использует только столбец 'rate'
     series = df["rate"].values.reshape(-1, 1)
 
-    # 2. Масштабируем (обязательно сохраняем scaler!)
+    # -------------------------
+    # 2. Масштабируем данные
+    # -------------------------
     scaler = MinMaxScaler()
     scaled = scaler.fit_transform(series)
 
-    # 3. Генерируем окна
+    # -------------------------
+    # 3. Формируем окна
+    # -------------------------
     X, y = create_sequences(scaled, window_size)
 
-    # 4. Хронологическое разделение
-    test_size = max(1, int(len(X) * test_ratio))  # гарантируем ≥ 1 точку
+    # -------------------------
+    # 4. Делим train/test
+    # -------------------------
+    test_size = max(1, int(len(X) * test_ratio))  # защита: минимум 1 пример
 
     X_train, y_train = X[:-test_size], y[:-test_size]
-    X_test, y_test = X[-test_size:], y[-test_size:]
+    X_test,  y_test  = X[-test_size:], y[-test_size:]
 
-    logger.info(f"Train size: {len(X_train)}, Test size: {len(X_test)}")
+    logger.info(f"Train size: {len(X_train)} | Test size: {len(X_test)}")
 
-    # 5. Превращаем в PyTorch Dataset
+    # -------------------------
+    # 5. Создаём Dataset объекты
+    # -------------------------
     train_ds = USDataset(X_train, y_train)
-    test_ds = USDataset(X_test, y_test)
+    test_ds  = USDataset(X_test, y_test)
 
     return train_ds, test_ds, scaler

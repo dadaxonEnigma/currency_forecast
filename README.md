@@ -128,11 +128,11 @@ pip install prophet
 ### 4. Загрузка данных
 Вариант A - последние N дней:
 ```bash
-python src/data_loader/fetch_data.py --last 2000
+python -m src.data_loader.fetch_data --last 2000
 ```
 Вариант B - за период:
 ```bash
-python src/data_loader/fetch_data.py --start 2018-12-01 --end 2025-12-03
+python -m src.data_loader.fetch_data --start 2018-12-01 --end 2025-12-03
 ```
 После скачивания появится файл:
 ```bash
@@ -142,7 +142,7 @@ data/raw/usd_rates.csv
 ### 📥 5. Предобработка данных
 Создаёт файл usd_preprocessed.csv и фичи.
 ```bash
-python src/preprocessing/preprocess.py
+python -m src.preprocessing.preprocess
 ```
 После выполнения появится:
 data/processed/usd_preprocessed.csv
@@ -154,7 +154,7 @@ data/processed/usd_preprocessed.csv
 ### 🤖 6. Обучение LSTM модели
 Запустите тренировку:
 ```bash
-python src/model/train.py
+python -m src.model.train
 ```
 #### 📉 Loss Curve (пример)
 ![alt text](img/learning_curve.png)
