@@ -11,6 +11,9 @@
 
 ---
 
+## 🖥️ DEMO
+https://github.com/user-attachments/assets/ee84a9b0-5bac-425f-9144-a16e8dd8a60f
+
 ## 🚀 Возможности
 
 ### 🤖 Прогнозирование
