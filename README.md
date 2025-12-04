@@ -36,39 +36,61 @@
 ---
 ## System Architecture
 ![ML System Architecture](img/full_pipeline(vert).svg)
+
+## Подробные архитектурные диаграммы
+
+#### 1. Data Pipeline - Fetching Data
+![Fetching Data Pipeline](img/fetch_data_result.svg)
+
+
+#### 2. Data Pipeline - Preprocessing
+![Data Preprocessing Pipeline](img/preprocessing.svg)
+
+#### 3. Dataset Pipeline - Windows / Scaler / Split
+![Dataset Preparation Pipeline](img/min_max.svg)
+
+#### 4. Training Pipeline - LSTM Training Loop
+![LSTM Training Pipeline](img/train_graph.svg)
+
+#### 5. Prophet Model Pipeline
+![Prophet Forecast Pipeline](img/prophet.svg)
+
 ## 🧱 Структура проекта
 📦 project
 │
-├── src/
-│   ├── preprocessing/
-│   │   └── preprocess.py
-│   ├── model/
-│   │   ├── dataset.py
-│   │   ├── model_lstm.py
-│   │   ├── predict.py
-│   │   └── train.py
-│   └── web/
-│       └── app.py     ← Streamlit приложение
+├── 📁 src
+│   ├── 📁 preprocessing
+│   │   └── 🧹 preprocess.py                  # очистка данных, заполнение пропусков
+│   │
+│   ├── 📁 model
+│   │   ├── 🧩 dataset.py                     # windows, scaler, split
+│   │   ├── 🧠 model_lstm.py                  # архитектура LSTM
+│   │   ├── 🔮 predict.py                     # LSTM прогноз (inference)
+│   │   └── 🎯 train.py                       # обучение LSTM + метрики
+│   │
+│   └── 📁 web
+│       └── 🖥️ app.py                         # Streamlit интерфейс
 │
-├── data/
-│   ├── raw/
-│   │   └── usd_rates.csv
-│   └── processed/
-│       ├── usd_preprocessed.csv
-│       ├── usd_forecast.csv
-│       ├── usd_prophet_forecast.csv
-│       └── lstm_test_predictions.csv
+├── 📁 data
+│   ├── 📁 raw
+│   │   └── 📄 usd_rates.csv                  # исходные данные
+│   │
+│   └── 📁 processed
+│       ├── 📄 usd_preprocessed.csv           # очищенные данные
+│       ├── 📄 usd_forecast.csv               # прогноз LSTM
+│       ├── 📄 usd_prophet_forecast.csv       # прогноз Prophet
+│       └── 📄 lstm_test_predictions.csv      # предсказания на тесте
 │
-├── models/
-│   ├── lstm_usd_model.pth
-│   ├── scaler.pkl
-│   ├── model_config.json
-│   ├── loss_curve.png
-│   ├── loss_curve.csv
-│   └── metrics.json
+├── 📁 models
+│   ├── 🔧 lstm_usd_model.pth                 # веса модели
+│   ├── 🔧 scaler.pkl                         # MinMaxScaler
+│   ├── ⚙️ model_config.json                  # параметры окна и модели
+│   ├── 📊 loss_curve.png                     # график обучения
+│   ├── 📄 loss_curve.csv                     # данные кривой обучения
+│   └── 📄 metrics.json                       # MAE/RMSE
 │
-├── pyproject.toml
-└── README.md
+├── 📝 pyproject.toml
+└── 📝 README.md
 
 ---
 
@@ -140,18 +162,6 @@ streamlit run src/web/app.py
 
 ### Сравнение моделей
 ![alt text](img/compare_models.png)
-
-## 🧠 Архитектура LSTM
-text
-Input (window_size)
-        ↓
-      LSTM layers
-        ↓
- Optional Activation
-        ↓
-       Linear
-        ↓
-     Output (forecast)
 
 ## 🤝 Автор
 Dadakhon Turgunboev
