@@ -55,43 +55,10 @@
 #### 5. Prophet Model Pipeline
 ![Prophet Forecast Pipeline](img/prophet.svg)
 
-## 🧱 Структура проекта
-📦 project
-│
-├── 📁 src
-│   ├── 📁 preprocessing
-│   │   └── 🧹 preprocess.py                  # очистка данных, заполнение пропусков
-│   │
-│   ├── 📁 model
-│   │   ├── 🧩 dataset.py                     # windows, scaler, split
-│   │   ├── 🧠 model_lstm.py                  # архитектура LSTM
-│   │   ├── 🔮 predict.py                     # LSTM прогноз (inference)
-│   │   └── 🎯 train.py                       # обучение LSTM + метрики
-│   │
-│   └── 📁 web
-│       └── 🖥️ app.py                         # Streamlit интерфейс
-│
-├── 📁 data
-│   ├── 📁 raw
-│   │   └── 📄 usd_rates.csv                  # исходные данные
-│   │
-│   └── 📁 processed
-│       ├── 📄 usd_preprocessed.csv           # очищенные данные
-│       ├── 📄 usd_forecast.csv               # прогноз LSTM
-│       ├── 📄 usd_prophet_forecast.csv       # прогноз Prophet
-│       └── 📄 lstm_test_predictions.csv      # предсказания на тесте
-│
-├── 📁 models
-│   ├── 🔧 lstm_usd_model.pth                 # веса модели
-│   ├── 🔧 scaler.pkl                         # MinMaxScaler
-│   ├── ⚙️ model_config.json                  # параметры окна и модели
-│   ├── 📊 loss_curve.png                     # график обучения
-│   ├── 📄 loss_curve.csv                     # данные кривой обучения
-│   └── 📄 metrics.json                       # MAE/RMSE
-│
-├── 📝 pyproject.toml
-└── 📝 README.md
+---
 
+## 🧱 Структура проекта
+![alt text](img/structure_project.png)
 ---
 
 ## 🔧 Установка
@@ -106,7 +73,7 @@ cd currency_forecast
 pip install .
 ```
 
-## 📥 1. Предобработка данных
+#### 📥 1. Предобработка данных
 Для начала нужно создать обработанный датасет:
 
 ```bash
@@ -115,20 +82,20 @@ python src/preprocessing/preprocess.py
 После выполнения появится:
 data/processed/usd_preprocessed.csv
 
-### 📊 Пример визуализации
+#### 📊 Пример визуализации
 ![alt text](img/rate_data.png)
 ![alt text](img/preprocessing.png)
 
-## 🤖 2. Обучение LSTM модели
+#### 🤖 2. Обучение LSTM модели
 Запустите тренировку:
 
 ```bash
 python src/model/train.py
 ```
-### 📉 Loss Curve (пример)
+#### 📉 Loss Curve (пример)
 ![alt text](img/learning_curve.png)
 
-## 🔮 3. Генерация прогноза
+#### 🔮 3. Генерация прогноза
 ### Прогноз LSTM:
 ```bash
 python src/model/predict.py
@@ -166,4 +133,4 @@ streamlit run src/web/app.py
 ## 🤝 Автор
 Dadakhon Turgunboev
 Machine Learning Engineer
-GitHub: [https://github.com/yourprofile](https://github.com/dadaxonEnigma)
+GitHub: [https://github.com/dadaxonEnigma](https://github.com/dadaxonEnigma)
